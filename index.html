@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>3DGS Gaussian/Gabor Primitive Viewer</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="panel" aria-label="参数面板">
+        <header class="panel-header">
+          <p class="eyebrow">3D Gaussian Splatting</p>
+          <h1>高斯 / Gabor 基元</h1>
+          <code>P(x)=G(x)[1-Σwᵢ+Σwᵢcos(2πfᵢᵀx)]</code>
+        </header>
+
+        <section class="tool-section">
+          <h2>直接操作</h2>
+          <div class="segmented target-segmented" role="group" aria-label="操作对象">
+            <button id="targetGaussian" class="active" type="button" title="操作当前基元">基元</button>
+            <button id="targetScreen" type="button" title="操作屏幕相机">屏幕/相机</button>
+          </div>
+          <div class="segmented" role="group" aria-label="变换模式">
+            <button id="modeTranslate" class="active" type="button" title="拖动椭球">移动</button>
+            <button id="modeRotate" type="button" title="旋转椭球">旋转</button>
+            <button id="modeScale" type="button" title="缩放椭球">缩放</button>
+          </div>
+          <div class="button-row">
+            <button id="spaceToggle" type="button" title="切换局部/世界坐标">局部坐标</button>
+            <button id="resetCamera" type="button" title="重置相机视角">重置视角</button>
+          </div>
+        </section>
+
+        <section class="tool-section">
+          <h2>基元</h2>
+          <div id="primitiveList" class="primitive-list" aria-label="基元列表"></div>
+          <div class="button-row primitive-actions">
+            <button id="addPrimitive" type="button" title="添加一个新的 Gaussian/Gabor 基元">添加</button>
+            <button id="duplicatePrimitive" type="button" title="复制当前选中的基元">复制</button>
+            <button id="deletePrimitive" type="button" title="删除当前选中的基元">删除</button>
+          </div>
+          <p id="primitiveSummary" class="small-metric"></p>
+        </section>
+
+        <section class="tool-section">
+          <h2>位置</h2>
+          <div class="control-list">
+            <label class="control-row">
+              <span>X</span>
+              <input data-bind="position.x" type="range" min="-5" max="5" step="0.01" value="0" autocomplete="off" />
+              <input data-bind-number="position.x" type="number" min="-5" max="5" step="0.01" value="0" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>Y</span>
+              <input data-bind="position.y" type="range" min="-5" max="5" step="0.01" value="0" autocomplete="off" />
+              <input data-bind-number="position.y" type="number" min="-5" max="5" step="0.01" value="0" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>Z</span>
+              <input data-bind="position.z" type="range" min="-5" max="5" step="0.01" value="0" autocomplete="off" />
+              <input data-bind-number="position.z" type="number" min="-5" max="5" step="0.01" value="0" autocomplete="off" />
+            </label>
+          </div>
+        </section>
+
+        <section class="tool-section">
+          <h2>尺度</h2>
+          <div class="control-list">
+            <label class="control-row">
+              <span>Sx</span>
+              <input data-bind="scale.x" type="range" min="0.05" max="3" step="0.01" value="1.2" autocomplete="off" />
+              <input data-bind-number="scale.x" type="number" min="0.05" max="6" step="0.01" value="1.2" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>Sy</span>
+              <input data-bind="scale.y" type="range" min="0.05" max="3" step="0.01" value="0.62" autocomplete="off" />
+              <input data-bind-number="scale.y" type="number" min="0.05" max="6" step="0.01" value="0.62" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>Sz</span>
+              <input data-bind="scale.z" type="range" min="0.05" max="3" step="0.01" value="0.34" autocomplete="off" />
+              <input data-bind-number="scale.z" type="number" min="0.05" max="6" step="0.01" value="0.34" autocomplete="off" />
+            </label>
+          </div>
+        </section>
+
+        <section class="tool-section">
+          <h2>旋转四元数</h2>
+          <div class="control-list">
+            <label class="control-row">
+              <span>qw</span>
+              <input data-bind="quaternion.w" type="range" min="-1" max="1" step="0.001" value="0.94" autocomplete="off" />
+              <input data-bind-number="quaternion.w" type="number" min="-1" max="1" step="0.001" value="0.94" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>qx</span>
+              <input data-bind="quaternion.x" type="range" min="-1" max="1" step="0.001" value="0.157" autocomplete="off" />
+              <input data-bind-number="quaternion.x" type="number" min="-1" max="1" step="0.001" value="0.157" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>qy</span>
+              <input data-bind="quaternion.y" type="range" min="-1" max="1" step="0.001" value="-0.29" autocomplete="off" />
+              <input data-bind-number="quaternion.y" type="number" min="-1" max="1" step="0.001" value="-0.29" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>qz</span>
+              <input data-bind="quaternion.z" type="range" min="-1" max="1" step="0.001" value="0.093" autocomplete="off" />
+              <input data-bind-number="quaternion.z" type="number" min="-1" max="1" step="0.001" value="0.093" autocomplete="off" />
+            </label>
+          </div>
+        </section>
+
+        <section class="tool-section">
+          <h2>显示</h2>
+          <div class="segmented display-segmented" role="group" aria-label="显示模式">
+            <button id="displaySolid" class="active" type="button" title="实体显示">实体</button>
+            <button id="displayTransparent" type="button" title="半透明显示">半透明</button>
+            <button id="displayWire" type="button" title="线框显示">线框</button>
+          </div>
+          <div class="control-list">
+            <label class="control-row">
+              <span>σ</span>
+              <input data-bind="level" type="range" min="0.25" max="3" step="0.05" value="1" autocomplete="off" />
+              <input data-bind-number="level" type="number" min="0.25" max="5" step="0.05" value="1" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>不透明</span>
+              <input data-bind="opacity" type="range" min="0.05" max="1" step="0.01" value="0.55" autocomplete="off" />
+              <input data-bind-number="opacity" type="number" min="0.05" max="1" step="0.01" value="0.55" autocomplete="off" />
+            </label>
+            <label class="control-row color-row">
+              <span>颜色</span>
+              <input id="colorInput" type="color" value="#42d9c8" autocomplete="off" />
+              <input id="colorText" type="text" value="#42d9c8" spellcheck="false" autocomplete="off" />
+            </label>
+          </div>
+          <div class="toggle-grid">
+            <label class="toggle-row">
+              <input id="wireToggle" type="checkbox" autocomplete="off" />
+              <span>线框</span>
+            </label>
+            <label class="toggle-row">
+              <input id="axesToggle" type="checkbox" checked autocomplete="off" />
+              <span>主轴</span>
+            </label>
+          </div>
+          <div class="button-row single-row">
+            <button id="resetGaussian" type="button" title="重置当前基元参数">重置基元</button>
+          </div>
+        </section>
+
+        <section class="tool-section">
+          <h2>Gabor 基元</h2>
+          <div class="control-list">
+            <label class="control-row">
+              <span>F</span>
+              <input id="gaborCountRange" type="range" min="0" max="6" step="1" value="0" autocomplete="off" />
+              <input id="gaborCountNumber" type="number" min="0" max="6" step="1" value="0" autocomplete="off" />
+            </label>
+          </div>
+          <div id="gaborList" class="gabor-list" aria-label="Gabor 参数"></div>
+          <p id="gaborSummary" class="small-metric"></p>
+        </section>
+
+        <section class="tool-section">
+          <h2>屏幕 / 投影</h2>
+          <div class="toggle-grid">
+            <label class="toggle-row">
+              <input id="screenVisibleToggle" type="checkbox" checked autocomplete="off" />
+              <span>屏幕</span>
+            </label>
+            <label class="toggle-row">
+              <input id="projectionVisibleToggle" type="checkbox" checked autocomplete="off" />
+              <span>投影</span>
+            </label>
+            <label class="toggle-row">
+              <input id="projectionContourToggle" type="checkbox" autocomplete="off" />
+              <span>等值线</span>
+            </label>
+            <label class="toggle-row">
+              <input id="projectionBoundsToggle" type="checkbox" autocomplete="off" />
+              <span>范围框</span>
+            </label>
+          </div>
+          <div class="control-list spaced-controls">
+            <label class="control-row">
+              <span>X</span>
+              <input data-bind="screen.position.x" type="range" min="-4" max="4" step="0.01" value="0" autocomplete="off" />
+              <input data-bind-number="screen.position.x" type="number" min="-6" max="6" step="0.01" value="0" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>Y</span>
+              <input data-bind="screen.position.y" type="range" min="-4" max="4" step="0.01" value="0" autocomplete="off" />
+              <input data-bind-number="screen.position.y" type="number" min="-6" max="6" step="0.01" value="0" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>Z</span>
+              <input data-bind="screen.position.z" type="range" min="-10" max="4" step="0.01" value="-6" autocomplete="off" />
+              <input data-bind-number="screen.position.z" type="number" min="-12" max="8" step="0.01" value="-6" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>W</span>
+              <input data-bind="screen.width" type="range" min="1" max="8" step="0.05" value="4.2" autocomplete="off" />
+              <input data-bind-number="screen.width" type="number" min="0.5" max="12" step="0.05" value="4.2" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>H</span>
+              <input data-bind="screen.height" type="range" min="1" max="6" step="0.05" value="3" autocomplete="off" />
+              <input data-bind-number="screen.height" type="number" min="0.5" max="10" step="0.05" value="3" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>焦距</span>
+              <input data-bind="screen.focal" type="range" min="0.5" max="8" step="0.05" value="3.2" autocomplete="off" />
+              <input data-bind-number="screen.focal" type="number" min="0.1" max="12" step="0.05" value="3.2" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>Qw</span>
+              <input data-bind="screen.quaternion.w" type="range" min="-1" max="1" step="0.001" value="1" autocomplete="off" />
+              <input data-bind-number="screen.quaternion.w" type="number" min="-1" max="1" step="0.001" value="1" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>Qx</span>
+              <input data-bind="screen.quaternion.x" type="range" min="-1" max="1" step="0.001" value="0" autocomplete="off" />
+              <input data-bind-number="screen.quaternion.x" type="number" min="-1" max="1" step="0.001" value="0" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>Qy</span>
+              <input data-bind="screen.quaternion.y" type="range" min="-1" max="1" step="0.001" value="0" autocomplete="off" />
+              <input data-bind-number="screen.quaternion.y" type="number" min="-1" max="1" step="0.001" value="0" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>Qz</span>
+              <input data-bind="screen.quaternion.z" type="range" min="-1" max="1" step="0.001" value="0" autocomplete="off" />
+              <input data-bind-number="screen.quaternion.z" type="number" min="-1" max="1" step="0.001" value="0" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>PxW</span>
+              <input data-bind="screen.resolution.x" type="range" min="128" max="2048" step="1" value="512" autocomplete="off" />
+              <input data-bind-number="screen.resolution.x" type="number" min="32" max="4096" step="1" value="512" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>PxH</span>
+              <input data-bind="screen.resolution.y" type="range" min="128" max="2048" step="1" value="384" autocomplete="off" />
+              <input data-bind-number="screen.resolution.y" type="number" min="32" max="4096" step="1" value="384" autocomplete="off" />
+            </label>
+            <label class="control-row">
+              <span>α</span>
+              <input data-bind="screen.opacity" type="range" min="0.05" max="1" step="0.01" value="0.86" autocomplete="off" />
+              <input data-bind-number="screen.opacity" type="number" min="0.05" max="1" step="0.01" value="0.86" autocomplete="off" />
+            </label>
+          </div>
+          <div class="button-row single-row">
+            <button id="resetScreen" type="button" title="重置屏幕平面">重置屏幕</button>
+          </div>
+          <p id="screenSummary" class="small-metric"></p>
+        </section>
+
+        <section class="tool-section">
+          <h2>投影预览 / 导出</h2>
+          <div class="button-row">
+            <button id="refreshProjectionPreview" type="button" title="按当前参数重新生成屏幕空间投影">刷新预览</button>
+            <button id="exportProjectionPng" type="button" title="导出当前屏幕空间投影 PNG">导出 PNG</button>
+          </div>
+          <label class="toggle-row preview-toggle">
+            <input id="transparentExportToggle" type="checkbox" autocomplete="off" />
+            <span>透明背景</span>
+          </label>
+          <div class="projection-preview-frame">
+            <canvas id="projectionPreviewCanvas" width="512" height="384" aria-label="屏幕空间投影预览"></canvas>
+          </div>
+          <a id="projectionDownloadLink" class="download-link" href="#" download hidden>保存 PNG</a>
+          <p id="projectionPreviewSummary" class="small-metric"></p>
+        </section>
+
+        <section class="tool-section matrix-section">
+          <h2>当前协方差</h2>
+          <pre id="covarianceMatrix" aria-label="协方差矩阵"></pre>
+          <p id="quaternionText" class="small-metric"></p>
+          <p id="eulerText" class="small-metric"></p>
+        </section>
+      </aside>
+
+      <section class="viewport-wrap" aria-label="三维视图">
+        <div class="viewport-topbar">
+          <div>
+            <strong id="modeLabel">移动模式</strong>
+            <span id="scaleLabel"></span>
+          </div>
+          <div class="legend">
+            <span class="legend-item"><i class="axis-x"></i>X</span>
+            <span class="legend-item"><i class="axis-y"></i>Y</span>
+            <span class="legend-item"><i class="axis-z"></i>Z</span>
+          </div>
+        </div>
+        <canvas id="sceneCanvas"></canvas>
+      </section>
+    </main>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
